@@ -3,8 +3,6 @@ const https = require('https')
 const { URL } = require('url')
 const { Buffer } = require('buffer')
 const { IncomingMessage, ServerResponse } = require('http')
-const fs = require('fs')
-const path = require('path')
 
 const PORT = 3000
 const MAX_URL_LENGTH = 255
@@ -184,30 +182,6 @@ http
 		const { method, url: reqUrl } = req
 		const parsedUrl = new URL(reqUrl, `http://${req.headers.host}`)
 		const address = parsedUrl.searchParams.get('address')
-
-		// 🟡 Serve static files (index.html, .js, .css from /test3)
-		if (!address && (reqUrl === '/' || reqUrl.startsWith('/test3'))) {
-			let filePath = path.join(
-				__dirname,
-				'test3',
-				reqUrl === '/' ? 'index.html' : reqUrl.replace('/test3', '')
-			)
-			if (fs.existsSync(filePath) && fs.lstatSync(filePath).isFile()) {
-				const ext = path.extname(filePath).toLowerCase()
-				const contentType =
-					{
-						'.html': 'text/html',
-						'.js': 'application/javascript',
-						'.css': 'text/css',
-					}[ext] || 'application/octet-stream'
-
-				res.writeHead(200, { 'Content-Type': contentType })
-				return fs.createReadStream(filePath).pipe(res)
-			} else {
-				res.writeHead(404)
-				return res.end('File not found')
-			}
-		}
 
 		// CORS preflight
 		if (method === 'OPTIONS') {
