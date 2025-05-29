@@ -2,11 +2,10 @@ const http = require('http')
 const https = require('https')
 const { URL } = require('url')
 const { Buffer } = require('buffer')
+const { IncomingMessage, ServerResponse } = require('http')
 
-const PORT = 3000
+const PORT = process.env.PORT || 3000
 const MAX_URL_LENGTH = 255
-
-const ALLOW_ALL = process.env.ALLOW_ALL === 'true' // Увімкніть в середовищі (env)
 
 const knownHosts = new Set([
 	'czo.gov.ua',
@@ -86,8 +85,7 @@ function isKnownHost(rawUrl) {
 		const protocol = parsed.protocol
 
 		if (!['http:', 'https:'].includes(protocol)) return false
-
-		return ALLOW_ALL || knownHosts.has(host)
+		return knownHosts.has(host)
 	} catch {
 		return false
 	}
@@ -185,6 +183,7 @@ http
 		const parsedUrl = new URL(reqUrl, `http://${req.headers.host}`)
 		const address = parsedUrl.searchParams.get('address')
 
+		// CORS preflight
 		if (method === 'OPTIONS') {
 			res.writeHead(204, {
 				'Access-Control-Allow-Origin': '*',
@@ -225,7 +224,4 @@ http
 	})
 	.listen(PORT, () => {
 		console.log(`Proxy server running on http://localhost:${PORT}`)
-		if (ALLOW_ALL) {
-			console.warn('⚠️ WARNING: ALLOW_ALL=true — all hosts will be accepted!')
-		}
 	})
