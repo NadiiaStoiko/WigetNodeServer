@@ -2,8 +2,9 @@ const http = require('http')
 const https = require('https')
 const { URL } = require('url')
 const { Buffer } = require('buffer')
+const { IncomingMessage, ServerResponse } = require('http')
 
-const PORT = process.env.PORT || 3000
+const PORT = 3000
 const MAX_URL_LENGTH = 255
 
 const knownHosts = new Set([
@@ -178,10 +179,8 @@ function proxyRequest(method, targetUrl, bodyData, clientRes) {
 
 http
 	.createServer((req, res) => {
-		const method = req.method
-
-		// ❗ Використовуємо localhost як базу (НЕ headers.host — він дає помилку на Render)
-		const parsedUrl = new URL(req.url, 'http://localhost')
+		const { method, url: reqUrl } = req
+		const parsedUrl = new URL(reqUrl, `http://${req.headers.host}`)
 		const address = parsedUrl.searchParams.get('address')
 
 		// CORS preflight
@@ -200,7 +199,8 @@ http
 			res.writeHead(400)
 			return res.end('Bad Request')
 		}
-
+		console.log('address', address)
+		console.log('!isKnownHost(address)', !isKnownHost(address))
 		if (!address || !isKnownHost(address)) {
 			res.writeHead(403)
 			return res.end('403 Forbidden – Invalid or untrusted address')
