@@ -2,7 +2,6 @@ const http = require('http')
 const https = require('https')
 const { URL } = require('url')
 const { Buffer } = require('buffer')
-const { IncomingMessage, ServerResponse } = require('http')
 
 const PORT = process.env.PORT || 3000
 const MAX_URL_LENGTH = 255
@@ -179,8 +178,10 @@ function proxyRequest(method, targetUrl, bodyData, clientRes) {
 
 http
 	.createServer((req, res) => {
-		const { method, url: reqUrl } = req
-		const parsedUrl = new URL(reqUrl, `http://${req.headers.host}`)
+		const method = req.method
+
+		// ❗ Використовуємо localhost як базу (НЕ headers.host — він дає помилку на Render)
+		const parsedUrl = new URL(req.url, 'http://localhost')
 		const address = parsedUrl.searchParams.get('address')
 
 		// CORS preflight
