@@ -3,11 +3,11 @@ const https = require('https')
 const { URL } = require('url')
 const { Buffer } = require('buffer')
 
-// Use dynamic port (for deployment on Render) or default to 3000
-const PORT = process.env.PORT || 3000
+const PORT = 3000
 const MAX_URL_LENGTH = 255
 
-// Known hosts list
+const ALLOW_ALL = process.env.ALLOW_ALL === 'true' // Увімкніть в середовищі (env)
+
 const knownHosts = new Set([
 	'czo.gov.ua',
 	'zc.bank.gov.ua',
@@ -84,7 +84,10 @@ function isKnownHost(rawUrl) {
 		const parsed = new URL(rawUrl)
 		const host = parsed.hostname
 		const protocol = parsed.protocol
-		return ['http:', 'https:'].includes(protocol) && knownHosts.has(host)
+
+		if (!['http:', 'https:'].includes(protocol)) return false
+
+		return ALLOW_ALL || knownHosts.has(host)
 	} catch {
 		return false
 	}
@@ -157,16 +160,17 @@ function proxyRequest(method, targetUrl, bodyData, clientRes) {
 		proxyRes.on('data', chunk => chunks.push(chunk))
 		proxyRes.on('end', () => {
 			const responseData = Buffer.concat(chunks)
+
 			clientRes.writeHead(200, {
 				'Content-Type': 'X-user/base64-data; charset=utf-8',
-				'Cache-Control': 'no-store, no-cache, must-revalidate',
+				'Cache-Control':
+					'no-store, no-cache, must-revalidate, post-check=0, pre-check=0',
 			})
 			clientRes.end(Buffer.from(responseData).toString('base64'))
 		})
 	})
 
 	proxyReq.on('error', err => {
-		console.error('Proxy error:', err.message)
 		clientRes.writeHead(500, { 'Content-Type': 'text/plain' })
 		clientRes.end('Proxy error: ' + err.message)
 	})
@@ -181,7 +185,6 @@ http
 		const parsedUrl = new URL(reqUrl, `http://${req.headers.host}`)
 		const address = parsedUrl.searchParams.get('address')
 
-		// CORS preflight
 		if (method === 'OPTIONS') {
 			res.writeHead(204, {
 				'Access-Control-Allow-Origin': '*',
@@ -221,5 +224,8 @@ http
 		}
 	})
 	.listen(PORT, () => {
-		console.log(`✅ Proxy server running on http://localhost:${PORT}`)
+		console.log(`Proxy server running on http://localhost:${PORT}`)
+		if (ALLOW_ALL) {
+			console.warn('⚠️ WARNING: ALLOW_ALL=true — all hosts will be accepted!')
+		}
 	})
