@@ -2,11 +2,12 @@ const http = require('http')
 const https = require('https')
 const { URL } = require('url')
 const { Buffer } = require('buffer')
-const { IncomingMessage, ServerResponse } = require('http')
 
-const PORT = 3000
+// Use dynamic port (for deployment on Render) or default to 3000
+const PORT = process.env.PORT || 3000
 const MAX_URL_LENGTH = 255
 
+// Known hosts list
 const knownHosts = new Set([
 	'czo.gov.ua',
 	'zc.bank.gov.ua',
@@ -83,9 +84,7 @@ function isKnownHost(rawUrl) {
 		const parsed = new URL(rawUrl)
 		const host = parsed.hostname
 		const protocol = parsed.protocol
-
-		if (!['http:', 'https:'].includes(protocol)) return false
-		return knownHosts.has(host)
+		return ['http:', 'https:'].includes(protocol) && knownHosts.has(host)
 	} catch {
 		return false
 	}
@@ -158,17 +157,16 @@ function proxyRequest(method, targetUrl, bodyData, clientRes) {
 		proxyRes.on('data', chunk => chunks.push(chunk))
 		proxyRes.on('end', () => {
 			const responseData = Buffer.concat(chunks)
-
 			clientRes.writeHead(200, {
 				'Content-Type': 'X-user/base64-data; charset=utf-8',
-				'Cache-Control':
-					'no-store, no-cache, must-revalidate, post-check=0, pre-check=0',
+				'Cache-Control': 'no-store, no-cache, must-revalidate',
 			})
 			clientRes.end(Buffer.from(responseData).toString('base64'))
 		})
 	})
 
 	proxyReq.on('error', err => {
+		console.error('Proxy error:', err.message)
 		clientRes.writeHead(500, { 'Content-Type': 'text/plain' })
 		clientRes.end('Proxy error: ' + err.message)
 	})
@@ -223,5 +221,5 @@ http
 		}
 	})
 	.listen(PORT, () => {
-		console.log(`Proxy server running on http://localhost:${PORT}`)
+		console.log(`✅ Proxy server running on http://localhost:${PORT}`)
 	})
