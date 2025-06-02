@@ -433,16 +433,17 @@ function saveSignData(e) {
 			// console.log('t', t)
 			window.saveAs(t, '__test_signed_data__.p7s')
 			// sendSignedDataToParent(t)
-			sendSignedDataToParent(e)
+			sendSignedDataToParent(e, t)
 		} catch (e) {
 			console.error(e)
 		}
 }
-function sendSignedDataToParent(signedBase64) {
+function sendSignedDataToParent(stringBase64, blobData) {
 	window.parent.postMessage(
 		{
 			type: 'signed-data',
-			payload: signedBase64,
+			stringBase64,
+			blobData,
 		},
 		'*' // або вкажи конкретний origin замість '*', наприклад: 'http://localhost:81'
 	)
