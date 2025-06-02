@@ -4,10 +4,11 @@ const express = require('express')
 const cors = require('cors')
 const { URL } = require('url')
 const { Buffer } = require('buffer')
+
 const app = express()
 app.use(cors())
 
-const PORT = 3000
+const PORT = process.env.PORT || 3000
 const MAX_URL_LENGTH = 255
 
 const knownHosts = new Set([
@@ -85,8 +86,10 @@ function isKnownHost(rawUrl) {
 		if (!rawUrl || rawUrl.length > MAX_URL_LENGTH) return false
 		const parsed = new URL(rawUrl)
 		const host = parsed.hostname
+		console.log('Parsed host:', host)
 		return ['http:', 'https:'].includes(parsed.protocol) && knownHosts.has(host)
-	} catch {
+	} catch (err) {
+		console.error('URL parse error:', err.message)
 		return false
 	}
 }
@@ -168,6 +171,7 @@ function proxyRequest(method, targetUrl, bodyData, clientRes) {
 	})
 
 	req.on('error', err => {
+		console.error('Proxy error:', err.message)
 		clientRes.writeHead(500, { 'Content-Type': 'text/plain' })
 		clientRes.end('Proxy error: ' + err.message)
 	})
@@ -176,6 +180,12 @@ function proxyRequest(method, targetUrl, bodyData, clientRes) {
 	req.end()
 }
 
+// Додатковий маршрут для перевірки дозволених хостів
+app.get('/allowed', (req, res) => {
+	res.json(Array.from(knownHosts))
+})
+
+// Основний сервер (raw Node.js)
 http
 	.createServer((req, res) => {
 		if (req.method === 'OPTIONS') {
@@ -189,7 +199,11 @@ http
 
 		const parsedUrl = new URL(req.url, `http://${req.headers.host}`)
 		const address = parsedUrl.searchParams.get('address')
+
+		console.log('Received request for address:', address)
+
 		if (!address || !isKnownHost(address)) {
+			console.warn('Rejected address:', address)
 			res.writeHead(403, { 'Content-Type': 'text/plain' })
 			return res.end('Forbidden: Invalid or unknown address')
 		}
