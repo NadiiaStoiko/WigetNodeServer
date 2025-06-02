@@ -4,7 +4,7 @@ const PK_FORM_TYPE_FILE = 1,
 var euSettings = {
 	language: 'uk',
 	encoding: 'utf-8',
-	httpProxyServiceURL: 'http://localhost:3000',
+	httpProxyServiceURL: 'http://localhost:10000',
 	directAccess: !0,
 	CAs: './Data/CAs.json',
 	CACertificates: './Data/CACertificates.p7b',
@@ -430,7 +430,7 @@ function saveSignData(e) {
 				t = new Blob([n], {
 					type: 'application/octet-stream',
 				})
-				console.log('t', t)
+			console.log('t', t)
 			// 	console.log('window', window)
 			window.saveAs(t, '__test_signed_data__.p7s')
 			sendSignedDataToParent(t)
@@ -442,10 +442,10 @@ function sendSignedDataToParent(signedBase64) {
 	window.parent.postMessage(
 		{
 			type: 'signed-data',
-			payload: signedBase64
+			payload: signedBase64,
 		},
 		'*' // або вкажи конкретний origin замість '*', наприклад: 'http://localhost:81'
-	);
+	)
 }
 function clean() {
 	try {
