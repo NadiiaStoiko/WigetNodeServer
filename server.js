@@ -2,17 +2,18 @@ const http = require('http')
 const https = require('https')
 const express = require('express')
 const cors = require('cors')
+const path = require('path')
 const { URL } = require('url')
 const { Buffer } = require('buffer')
-const path = require('path')
 
 const app = express()
-app.use(cors())
-app.use(express.static(path.join(__dirname, 'test3')))
-
 const PORT = process.env.PORT || 10000
 const MAX_URL_LENGTH = 255
 
+app.use(cors())
+app.use(express.static(path.join(__dirname, 'test3'))) // 👈 віддаємо index.html і скрипти
+
+// Проксі функції:
 const knownHosts = new Set([
 	'czo.gov.ua',
 	'zc.bank.gov.ua',
@@ -87,60 +88,25 @@ function isKnownHost(rawUrl) {
 	try {
 		if (!rawUrl || rawUrl.length > MAX_URL_LENGTH) return false
 		const parsed = new URL(rawUrl)
-		const host = parsed.hostname
-		console.log('Parsed host:', host)
-		return ['http:', 'https:'].includes(parsed.protocol) && knownHosts.has(host)
-	} catch (err) {
-		console.error('URL parse error:', err.message)
+		return (
+			['http:', 'https:'].includes(parsed.protocol) &&
+			knownHosts.has(parsed.hostname)
+		)
+	} catch {
 		return false
 	}
 }
 
 function getContentType(address) {
 	const path = new URL(address).pathname
-	if (
-		path.includes('/cloud/api/back/') ||
-		path.includes('/ss/') ||
-		path.includes('/api/EDG/Sign') ||
-		path.includes('/smartid/iit/') ||
-		path.includes('/hogsmeade/striga/v1') ||
-		path.includes('/iit-signer/api/v1')
-	)
-		return 'application/json'
-
-	const ocspPaths = [
-		'/services/ocsp',
-		'/public/ocsp',
-		'/ocsp',
-		'/ocsp-rsa',
-		'/ocsp-ecdsa',
-		'/OCSPsrv/ocsp',
-		'/queries/ocsp/',
-	]
-	const tspPaths = [
-		'/services/tsp',
-		'/services/tsp/dstu',
-		'/services/tsp/rsa',
-		'/services/tsp/ecdsa',
-		'/public/tsa',
-		'/public/tsp',
-		'/tsp',
-		'/tsp-rsa',
-		'/tsp-ecdsa',
-		'/TspHTTPServer/tsp',
-	]
-	const cmpPaths = ['/services/cmp', '/public/x509/cmp', '/cmp', '/api/PKI/CMP']
-
-	if (ocspPaths.includes(path)) return 'application/ocsp-request'
-	if (tspPaths.includes(path)) return 'application/timestamp-query'
-	if (cmpPaths.includes(path)) return ''
-	return 'text/plain'
+	if (path.includes('/ocsp')) return 'application/ocsp-request'
+	if (path.includes('/tsp')) return 'application/timestamp-query'
+	return 'application/octet-stream'
 }
 
 function proxyRequest(method, targetUrl, bodyData, clientRes) {
 	const parsed = new URL(targetUrl)
 	const transport = parsed.protocol === 'https:' ? https : http
-	const contentType = getContentType(targetUrl)
 
 	const options = {
 		hostname: parsed.hostname,
@@ -149,7 +115,7 @@ function proxyRequest(method, targetUrl, bodyData, clientRes) {
 		method,
 		headers: {
 			'User-Agent': 'signature.proxy',
-			'Content-Type': contentType || 'application/octet-stream',
+			'Content-Type': getContentType(targetUrl),
 			'Content-Length': bodyData.length,
 		},
 		rejectUnauthorized: false,
@@ -162,18 +128,16 @@ function proxyRequest(method, targetUrl, bodyData, clientRes) {
 			const responseBody = Buffer.concat(chunks)
 			clientRes.writeHead(200, {
 				'Content-Type': 'X-user/base64-data; charset=utf-8',
-				'Cache-Control':
-					'no-store, no-cache, must-revalidate, post-check=0, pre-check=0',
+				'Cache-Control': 'no-store',
 				'Access-Control-Allow-Origin': '*',
 				'Access-Control-Allow-Headers': 'Content-Type',
 				'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 			})
-			clientRes.end(Buffer.from(responseBody).toString('base64'))
+			clientRes.end(responseBody.toString('base64'))
 		})
 	})
 
 	req.on('error', err => {
-		console.error('Proxy error:', err.message)
 		clientRes.writeHead(500, { 'Content-Type': 'text/plain' })
 		clientRes.end('Proxy error: ' + err.message)
 	})
@@ -182,14 +146,11 @@ function proxyRequest(method, targetUrl, bodyData, clientRes) {
 	req.end()
 }
 
-// Додатковий маршрут для перевірки дозволених хостів
-app.get('/allowed', (req, res) => {
-	res.json(Array.from(knownHosts))
-})
-
-// Основний сервер (raw Node.js)
+// Обробка запитів
 http
 	.createServer((req, res) => {
+		const parsedUrl = new URL(req.url, `http://${req.headers.host}`)
+
 		if (req.method === 'OPTIONS') {
 			res.writeHead(204, {
 				'Access-Control-Allow-Origin': '*',
@@ -198,16 +159,14 @@ http
 			})
 			return res.end()
 		}
-		console.log('Full request URL:', req.url)
-		console.log('Method:', req.method)
-		console.log('Headers:', req.headers)
-		const parsedUrl = new URL(req.url, `http://${req.headers.host}`)
+
 		const address = parsedUrl.searchParams.get('address')
+		if (!address) {
+			// Дозволяємо доступ до index.html, .js, .css тощо
+			return res.end() // Express вже віддає файли
+		}
 
-		console.log('Received request for address:', address)
-
-		if (!address || !isKnownHost(address)) {
-			console.warn('Rejected address:', address)
+		if (!isKnownHost(address)) {
 			res.writeHead(403, { 'Content-Type': 'text/plain' })
 			return res.end('Forbidden: Invalid or unknown address')
 		}
@@ -221,18 +180,9 @@ http
 			req.on('data', chunk => chunks.push(chunk))
 			req.on('end', () => {
 				const base64Body = Buffer.concat(chunks).toString()
-				let body
-				try {
-					body = Buffer.from(base64Body, 'base64')
-				} catch {
-					res.writeHead(400, { 'Content-Type': 'text/plain' })
-					return res.end('Invalid base64 content')
-				}
+				const body = Buffer.from(base64Body, 'base64')
 				proxyRequest('POST', address, body, res)
 			})
-		} else {
-			res.writeHead(400, { 'Content-Type': 'text/plain' })
-			res.end('Unsupported method')
 		}
 	})
 	.listen(PORT, () => {
