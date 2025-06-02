@@ -1,8 +1,11 @@
 const http = require('http')
 const https = require('https')
+const express = require('express')
+const cors = require('cors')
 const { URL } = require('url')
 const { Buffer } = require('buffer')
-const { IncomingMessage, ServerResponse } = require('http')
+const app = express()
+app.use(cors())
 
 const PORT = 3000
 const MAX_URL_LENGTH = 255
@@ -82,10 +85,7 @@ function isKnownHost(rawUrl) {
 		if (!rawUrl || rawUrl.length > MAX_URL_LENGTH) return false
 		const parsed = new URL(rawUrl)
 		const host = parsed.hostname
-		const protocol = parsed.protocol
-
-		if (!['http:', 'https:'].includes(protocol)) return false
-		return knownHosts.has(host)
+		return ['http:', 'https:'].includes(parsed.protocol) && knownHosts.has(host)
 	} catch {
 		return false
 	}
@@ -93,7 +93,6 @@ function isKnownHost(rawUrl) {
 
 function getContentType(address) {
 	const path = new URL(address).pathname
-
 	if (
 		path.includes('/cloud/api/back/') ||
 		path.includes('/ss/') ||
@@ -130,21 +129,19 @@ function getContentType(address) {
 	if (ocspPaths.includes(path)) return 'application/ocsp-request'
 	if (tspPaths.includes(path)) return 'application/timestamp-query'
 	if (cmpPaths.includes(path)) return ''
-
 	return 'text/plain'
 }
 
 function proxyRequest(method, targetUrl, bodyData, clientRes) {
 	const parsed = new URL(targetUrl)
-	const isHttps = parsed.protocol === 'https:'
-	const transport = isHttps ? https : http
-
+	const transport = parsed.protocol === 'https:' ? https : http
 	const contentType = getContentType(targetUrl)
-	const requestOptions = {
+
+	const options = {
 		hostname: parsed.hostname,
-		port: parsed.port || (isHttps ? 443 : 80),
+		port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
 		path: parsed.pathname + parsed.search,
-		method: method,
+		method,
 		headers: {
 			'User-Agent': 'signature.proxy',
 			'Content-Type': contentType || 'application/octet-stream',
@@ -153,41 +150,35 @@ function proxyRequest(method, targetUrl, bodyData, clientRes) {
 		rejectUnauthorized: false,
 	}
 
-	const proxyReq = transport.request(requestOptions, proxyRes => {
+	const req = transport.request(options, res => {
 		const chunks = []
-		proxyRes.on('data', chunk => chunks.push(chunk))
-		proxyRes.on('end', () => {
-			const responseData = Buffer.concat(chunks)
-
+		res.on('data', chunk => chunks.push(chunk))
+		res.on('end', () => {
+			const responseBody = Buffer.concat(chunks)
 			clientRes.writeHead(200, {
 				'Content-Type': 'X-user/base64-data; charset=utf-8',
 				'Cache-Control':
 					'no-store, no-cache, must-revalidate, post-check=0, pre-check=0',
+				'Access-Control-Allow-Origin': '*',
+				'Access-Control-Allow-Headers': 'Content-Type',
+				'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 			})
-			clientRes.end(Buffer.from(responseData).toString('base64'))
+			clientRes.end(Buffer.from(responseBody).toString('base64'))
 		})
 	})
 
-	proxyReq.on('error', err => {
+	req.on('error', err => {
 		clientRes.writeHead(500, { 'Content-Type': 'text/plain' })
 		clientRes.end('Proxy error: ' + err.message)
 	})
 
-	proxyReq.write(bodyData)
-	proxyReq.end()
+	req.write(bodyData)
+	req.end()
 }
 
 http
 	.createServer((req, res) => {
-		console.log('res', res)
-		const { method, url: reqUrl } = req
-		const parsedUrl = new URL(reqUrl, `http://${req.headers.host}`)
-		console.log('parsedUrl', parsedUrl)
-		const address = parsedUrl.searchParams.get('address')
-		console.log('address', address)
-
-		// CORS preflight
-		if (method === 'OPTIONS') {
+		if (req.method === 'OPTIONS') {
 			res.writeHead(204, {
 				'Access-Control-Allow-Origin': '*',
 				'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
@@ -196,35 +187,36 @@ http
 			return res.end()
 		}
 
-		res.setHeader('Access-Control-Allow-Origin', '*')
-
-		if (!['GET', 'POST'].includes(method)) {
-			res.writeHead(400)
-			return res.end('Bad Request')
-		}
-
+		const parsedUrl = new URL(req.url, `http://${req.headers.host}`)
+		const address = parsedUrl.searchParams.get('address')
 		if (!address || !isKnownHost(address)) {
-			res.writeHead(403)
-			return res.end('403 Forbidden – Invalid or untrusted address')
+			res.writeHead(403, { 'Content-Type': 'text/plain' })
+			return res.end('Forbidden: Invalid or unknown address')
 		}
 
-		if (method === 'POST') {
+		if (req.method === 'GET') {
+			return proxyRequest('GET', address, Buffer.alloc(0), res)
+		}
+
+		if (req.method === 'POST') {
 			const chunks = []
 			req.on('data', chunk => chunks.push(chunk))
 			req.on('end', () => {
+				const base64Body = Buffer.concat(chunks).toString()
+				let body
 				try {
-					const base64data = Buffer.concat(chunks).toString()
-					const decodedBody = Buffer.from(base64data, 'base64')
-					proxyRequest('POST', address, decodedBody, res)
-				} catch (err) {
-					res.writeHead(400)
-					res.end('Invalid base64 payload')
+					body = Buffer.from(base64Body, 'base64')
+				} catch {
+					res.writeHead(400, { 'Content-Type': 'text/plain' })
+					return res.end('Invalid base64 content')
 				}
+				proxyRequest('POST', address, body, res)
 			})
 		} else {
-			proxyRequest('GET', address, Buffer.alloc(0), res)
+			res.writeHead(400, { 'Content-Type': 'text/plain' })
+			res.end('Unsupported method')
 		}
 	})
 	.listen(PORT, () => {
-		console.log(`Proxy server running on http://localhost:${PORT}`)
+		console.log(`Proxy server is running on http://localhost:${PORT}`)
 	})
