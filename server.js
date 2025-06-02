@@ -11,7 +11,12 @@ const PORT = process.env.PORT || 10000
 const MAX_URL_LENGTH = 255
 
 app.use(cors())
-app.use(express.static(path.join(__dirname, 'test3'))) // 👈 віддаємо index.html і скрипти
+app.use(express.static(path.join(__dirname, 'test3'))) // віддаємо index.html і скрипти
+
+// Обробляємо всі інші маршрути, повертаючи index.html
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'test3', 'index.html'));
+});
 
 // Проксі функції:
 const knownHosts = new Set([
