@@ -430,10 +430,10 @@ function saveSignData(e) {
 				t = new Blob([n], {
 					type: 'application/octet-stream',
 				})
-			console.log('t', t)
-			// 	console.log('window', window)
+			// console.log('t', t)
 			window.saveAs(t, '__test_signed_data__.p7s')
-			sendSignedDataToParent(t)
+			// sendSignedDataToParent(t)
+			sendSignedDataToParent(e)
 		} catch (e) {
 			console.error(e)
 		}
