@@ -8,7 +8,7 @@ const { Buffer } = require('buffer')
 const app = express()
 app.use(cors())
 
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT || 10000
 const MAX_URL_LENGTH = 255
 
 const knownHosts = new Set([
@@ -197,6 +197,8 @@ http
 			return res.end()
 		}
 		console.log('Full request URL:', req.url)
+		console.log('Method:', req.method)
+		console.log('Headers:', req.headers)
 		const parsedUrl = new URL(req.url, `http://${req.headers.host}`)
 		const address = parsedUrl.searchParams.get('address')
 
