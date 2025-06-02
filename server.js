@@ -196,7 +196,7 @@ http
 			})
 			return res.end()
 		}
-
+		console.log('Full request URL:', req.url)
 		const parsedUrl = new URL(req.url, `http://${req.headers.host}`)
 		const address = parsedUrl.searchParams.get('address')
 
