@@ -4,7 +4,7 @@ const PK_FORM_TYPE_FILE = 1,
 var euSettings = {
 	language: 'uk',
 	encoding: 'utf-8',
-	httpProxyServiceURL: 'http://localhost:10000',
+	httpProxyServiceURL: 'https://sign-wiget-node-js-server.onrender.com',
 	directAccess: !0,
 	CAs: './Data/CAs.json',
 	CACertificates: './Data/CACertificates.p7b',
