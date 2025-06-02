@@ -7,6 +7,7 @@ const { Buffer } = require('buffer')
 
 const app = express()
 app.use(cors())
+app.use(express.static(path.join(__dirname, 'test3')))
 
 const PORT = process.env.PORT || 10000
 const MAX_URL_LENGTH = 255
