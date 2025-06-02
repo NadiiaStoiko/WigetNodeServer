@@ -11,14 +11,10 @@ const PORT = process.env.PORT || 10000
 const MAX_URL_LENGTH = 255
 
 app.use(cors())
-app.use(express.static(path.join(__dirname, 'test3'))) // віддаємо index.html і скрипти
+app.use(express.static(path.join(__dirname, 'test3')))
 
-// Обробляємо всі інші маршрути, повертаючи index.html
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'test3', 'index.html'));
-});
+// ====== Проксі ======
 
-// Проксі функції:
 const knownHosts = new Set([
 	'czo.gov.ua',
 	'zc.bank.gov.ua',
@@ -133,7 +129,6 @@ function proxyRequest(method, targetUrl, bodyData, clientRes) {
 			const responseBody = Buffer.concat(chunks)
 			clientRes.writeHead(200, {
 				'Content-Type': 'X-user/base64-data; charset=utf-8',
-				'Cache-Control': 'no-store',
 				'Access-Control-Allow-Origin': '*',
 				'Access-Control-Allow-Headers': 'Content-Type',
 				'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -151,45 +146,44 @@ function proxyRequest(method, targetUrl, bodyData, clientRes) {
 	req.end()
 }
 
-// Обробка запитів
-http
-	.createServer((req, res) => {
-		const parsedUrl = new URL(req.url, `http://${req.headers.host}`)
+// ========= Проксі-маршрут =========
 
-		if (req.method === 'OPTIONS') {
-			res.writeHead(204, {
-				'Access-Control-Allow-Origin': '*',
-				'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-				'Access-Control-Allow-Headers': 'Content-Type',
-			})
-			return res.end()
-		}
+app.all('/', express.raw({ type: '*/*' }), (req, res) => {
+	const address = req.query.address
+	if (!address) return res.end() // just show index.html
 
-		const address = parsedUrl.searchParams.get('address')
-		if (!address) {
-			// Дозволяємо доступ до index.html, .js, .css тощо
-			return res.end() // Express вже віддає файли
-		}
+	if (!isKnownHost(address)) {
+		res.status(403).send('Forbidden: Invalid or unknown address')
+		return
+	}
 
-		if (!isKnownHost(address)) {
-			res.writeHead(403, { 'Content-Type': 'text/plain' })
-			return res.end('Forbidden: Invalid or unknown address')
-		}
+	if (req.method === 'GET') {
+		return proxyRequest('GET', address, Buffer.alloc(0), res)
+	}
 
-		if (req.method === 'GET') {
-			return proxyRequest('GET', address, Buffer.alloc(0), res)
+	if (req.method === 'POST') {
+		const base64Body = req.body.toString()
+		let body
+		try {
+			body = Buffer.from(base64Body, 'base64')
+		} catch {
+			return res.status(400).send('Invalid base64 content')
 		}
+		return proxyRequest('POST', address, body, res)
+	}
 
-		if (req.method === 'POST') {
-			const chunks = []
-			req.on('data', chunk => chunks.push(chunk))
-			req.on('end', () => {
-				const base64Body = Buffer.concat(chunks).toString()
-				const body = Buffer.from(base64Body, 'base64')
-				proxyRequest('POST', address, body, res)
-			})
-		}
-	})
-	.listen(PORT, () => {
-		console.log(`Proxy server is running on http://localhost:${PORT}`)
-	})
+	if (req.method === 'OPTIONS') {
+		res.writeHead(204, {
+			'Access-Control-Allow-Origin': '*',
+			'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+			'Access-Control-Allow-Headers': 'Content-Type',
+		})
+		return res.end()
+	}
+
+	res.status(405).send('Method Not Allowed')
+})
+
+app.listen(PORT, () => {
+	console.log(`✅ Proxy server is running on http://localhost:${PORT}`)
+})
