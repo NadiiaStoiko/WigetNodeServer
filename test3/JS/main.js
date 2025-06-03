@@ -1,3 +1,4 @@
+let signError = ''
 let isDocumentSignedSuccess = false
 const PK_FORM_TYPE_FILE = 1,
 	PK_FORM_TYPE_KM = 2,
@@ -406,6 +407,7 @@ function _signData(e, n) {
 			var n = e.message || e
 			console.log('Sign data error: ' + n),
 				alert('Виникла помилка при підписі даних. Опис помилки: ' + n)
+			signError = n
 			isDocumentSignedSuccess = false
 		})
 }
@@ -448,6 +450,7 @@ function sendSignedDataToParent(stringBase64, blobData) {
 			stringBase64,
 			blobData,
 			isDocumentSignedSuccess,
+			signError,
 		},
 		'*' // або вкажи конкретний origin замість '*', наприклад: 'http://localhost:81'
 	)
