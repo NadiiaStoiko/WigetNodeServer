@@ -408,6 +408,7 @@ function _signData(e, n) {
 			console.log('Sign data error: ' + n),
 				// alert('Виникла помилка при підписі даних. Опис помилки: ' + n)
 				(signError = n)
+			sendErrorMsg()
 			isDocumentSignedSuccess = false
 		})
 }
@@ -450,11 +451,21 @@ function sendSignedDataToParent(stringBase64, blobData) {
 			stringBase64,
 			blobData,
 			isDocumentSignedSuccess,
+		},
+		'*' // або вкажи конкретний origin замість '*', наприклад: 'http://localhost:81'
+	)
+}
+
+function sendErrorMsg() {
+	window.parent.postMessage(
+		{
+			type: 'signed-data-error',
 			signError,
 		},
 		'*' // або вкажи конкретний origin замість '*', наприклад: 'http://localhost:81'
 	)
 }
+
 function clean() {
 	try {
 		;(document.getElementById('pkFilePassword').value = ''),
