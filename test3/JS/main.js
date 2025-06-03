@@ -1,3 +1,4 @@
+let isDocumentSignedSuccess = false
 const PK_FORM_TYPE_FILE = 1,
 	PK_FORM_TYPE_KM = 2,
 	PK_FORM_TYPE_KSP = 3
@@ -11,7 +12,7 @@ var euSettings = {
 	allowedKeyMediaTypes: [],
 	KSPs: [],
 }
-console.log(euSettings)
+// console.log(euSettings)
 var euSignFile = new EndUser(null, EndUserConstants.EndUserLibraryType.JS),
 	euSignKeyMedia = new EndUser(null, EndUserConstants.EndUserLibraryType.SW),
 	keyMedias = [],
@@ -394,7 +395,8 @@ function _signData(e, n) {
 				(a.style.display = 'none'),
 				(i.disabled = !1),
 				console.log('Дані успішно підписані'),
-				saveSignData(n)
+				(isDocumentSignedSuccess = true)
+			saveSignData(n)
 		})
 		.catch(function (e) {
 			formType == PK_FORM_TYPE_KSP &&
@@ -404,6 +406,7 @@ function _signData(e, n) {
 			var n = e.message || e
 			console.log('Sign data error: ' + n),
 				alert('Виникла помилка при підписі даних. Опис помилки: ' + n)
+			isDocumentSignedSuccess = false
 		})
 }
 function base64ToArrayBuffer(e) {
@@ -444,6 +447,7 @@ function sendSignedDataToParent(stringBase64, blobData) {
 			type: 'signed-data',
 			stringBase64,
 			blobData,
+			isDocumentSignedSuccess,
 		},
 		'*' // або вкажи конкретний origin замість '*', наприклад: 'http://localhost:81'
 	)
