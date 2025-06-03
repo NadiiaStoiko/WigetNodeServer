@@ -117,10 +117,10 @@ function setLibraryType(e) {
 		})
 		.catch(function (e) {
 			var n = e.message || e
-			console.log('Initialize error: ' + n),
-				// alert(
-				// 	'Виникла помилка при ініціалізації бібліотеки. Опис помилки: ' + n
-				// )
+			console.log('Initialize error: ' + n)
+			// alert(
+			// 	'Виникла помилка при ініціалізації бібліотеки. Опис помилки: ' + n
+			// )
 		})
 }
 function initialize() {
@@ -343,9 +343,9 @@ function signData() {
 						;(o.style.display = 'none'), (l.disabled = !1)
 						var n = e.message || e
 						console.error('Fail read data from file: ' + n)
-							// alert(
-							// 	'Виникла помилка отримання даних з файлу. Опис помилки: ' + n
-							// )
+						// alert(
+						// 	'Виникла помилка отримання даних з файлу. Опис помилки: ' + n
+						// )
 					})
 					.finally(() => {}))
 	)
@@ -407,7 +407,7 @@ function _signData(e, n) {
 			var n = e.message || e
 			console.log('Sign data error: ' + n),
 				// alert('Виникла помилка при підписі даних. Опис помилки: ' + n)
-			signError = n
+				(signError = n)
 			isDocumentSignedSuccess = false
 		})
 }
